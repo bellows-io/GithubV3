@@ -10,5 +10,8 @@
 			"type": "vcs",
 			"url" : "git@github.com:bellows-io/request.git"
 		}
-	]
+	],
+	"autoload": {
+		"psr-4": {"GithubV3\\":"src/"}
+	}
 }
