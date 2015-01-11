@@ -3,7 +3,7 @@
 	"description" : "Clean github api client",
 	"license"     : "MIT",
 	"require"     : {
-		"bellows/request": "dev-dev"
+		"bellows-io/request": "dev-dev"
 	},
 	"repositories": [
 		{
