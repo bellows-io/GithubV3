@@ -4,6 +4,9 @@ namespace GithubV3;
 
 use \GithubV3\Factories\PullRequestFactory;
 use \GithubV3\Factories\RepositoryFactory;
+use \GithubV3\Factories\UserFactory;
+use \GithubV3\Factories\BranchFactory;
+use \GithubV3\Factories\CommitFactory;
 use \Request\Curl\Request;
 
 class Connection {
@@ -11,13 +14,23 @@ class Connection {
 	protected $token;
 	protected $baseUrl;
 
+	protected $verbose = true;
+
+	protected $repoFactory;
+	protected $userFactory;
+	protected $commitFactory;
+	protected $branchFactory;
 	protected $prFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory) {
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory) {
 
 		$this->baseUrl = $baseUrl;
-		$this->repoFactory = $repoFactory;
-		$this->prFactory = $prFactory;
+
+		$this->repoFactory   = $repoFactory;
+		$this->prFactory     = $prFactory;
+		$this->userFactory   = $userFactory;
+		$this->commitFactory = $commitFactory;
+		$this->branchFactory = $branchFactory;
 	}
 
 
@@ -32,11 +45,9 @@ class Connection {
 			'per_page'  => $perPage
 		]);
 
-		$out = [];
-		foreach ($data as $requestData) {
-			$out[] = $this->repoFactory->makeFromData($requestData, $this);
-		}
-		return $out;
+		return array_map(function($d) {
+			return $this->repoFactory->makeFromData($d, $this);
+		}, $data);
 	}
 
 	public function listUserRepositories($username, $type=null, $sort=null, $direction=null, $page = null, $perPage = null) {
@@ -48,6 +59,10 @@ class Connection {
 			'page'      => $page,
 			'per_page'  => $perPage
 		]);
+
+		return array_map(function($d) {
+			return $this->repoFactory->makeFromData($d, $this);
+		}, $data);
 	}
 
 	public function listOrganizationRepositories($org, $type=null, $page = null, $perPage = null) {
@@ -57,6 +72,10 @@ class Connection {
 			'page'     => $page,
 			'per_page' => $perPage
 		]);
+
+		return array_map(function($d) {
+			return $this->repoFactory->makeFromData($d, $this);
+		}, $data);
 	}
 
 	public function listAllPublicRepositories($since = null, $page = null, $perPage = null) {
@@ -66,10 +85,16 @@ class Connection {
 			'page'     => $page,
 			'per_page' => $perPage
 		]);
+
+		return array_map(function($d) {
+			return $this->repoFactory->makeFromData($d, $this);
+		}, $data);
 	}
 
 	public function getRepository($owner, $repo) {
 		$data = $this->requestUrl("/repos/$owner/$repo");
+
+		return $this->repoFactory->makeFromData($data, $this);
 	}
 
 	public function listContributors($owner, $repo, $anon = null, $page = null, $perPage = null) {
@@ -78,6 +103,10 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return array_map(function($d) {
+			return $this->userFactory->makeFromPartialData($d, $this);
+		}, $data);
 	}
 
 	public function listLanguages($owner, $repo, $page = null, $perPage = null) {
@@ -85,6 +114,8 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return $data;
 	}
 
 	public function listTeams($owner, $repo, $page = null, $perPage = null) {
@@ -92,6 +123,8 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return $data;
 	}
 
 	public function listTags($owner, $repo, $page = null, $perPage = null) {
@@ -99,6 +132,8 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return $data;
 	}
 
 	public function listBranches($owner, $repo, $page = null, $perPage = null) {
@@ -106,11 +141,18 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return array_map(function($d) use ($owner, $repo) {
+			return $this->branchFactory->makeFromData($owner, $repo, $d, $this);
+		}, $data);
 	}
 
 	public function getBranch($owner, $repo, $branchName) {
 		$data = $this->requestUrl("/repos/$owner/$repo/branches/$branchName");
+
+		return $this->branchFactory->makeFromData($owner, $repo, $data, $this);
 	}
+
 
 	### Comments
 	public function listCommentsForRepository($owner, $repo, $page = null, $perPage = null) {
@@ -119,6 +161,8 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+		return $data;
 	}
 
 	public function listCommentsForCommit($owner, $repo, $ref, $page = null, $perPage = null) {
@@ -127,14 +171,41 @@ class Connection {
 			'page' => $page,
 			'per_page' => $perPage
 		]);
+
+
+
+		return $data;
 	}
 
 
+	### Commits
+	public function listCommits($owner, $repo, $startSha = null, $filePath = null, $author=null, $since = null, $until = null, $page= null, $perPage = null) {
 
+		$data = $this->requestUrl("/repos/$owner/$repo/commits", [
+			"sha" => $startSha,
+			"path" => $filePath,
+			"author" => $author,
+			"since" => $since,
+			"until" => $until,
+			"page" => $page,
+			"per_page" => $perPage
+		]);
 
+		return array_map(function($c) use ($owner, $repo) {
+			return $this->commitFactory->makeFromData($c, $this);
+		}, $data);
+	}
 
+	public function getCommit($owner, $repo, $sha, $page=null, $perPage = null) {
 
+		$data = $this->requestUrl("/repos/$owner/$repo/commits/$sha", [
+			"page" => $page,
+			"per_page" => $perPage
+		]);
 
+		return $this->commitFactory->makeFromData($data, $this);
+
+	}
 
 	protected function requestUrl($path, array $parameters = array(), $method="GET") {
 		$url = $this->baseUrl.$path;
@@ -149,10 +220,13 @@ class Connection {
 			$request->httpHeader('Authorization', 'token '. $this->token->getTokenValue());
 		}
 
+
+
 		$response = $request->exec();
 		$jsonData = @json_decode($response->getBody(), true);
 
 		if ($this->verbose) {
+			echo "Requesting $url\n";
 			$headers = $response->getHeaders();
 			$limit = $headers['X-RateLimit-Limit'];
 			$remaining = $headers['X-RateLimit-Remaining'];
@@ -160,7 +234,7 @@ class Connection {
 			$minutes = floor($reset / 60);
 			$seconds = $reset % 60;
 
-			echo "$remaining / $limit requests available. Resets in $minutes:$seconds\n";
+			printf("%d / %d requests available. Resets in %d:%02d\n", $remaining, $limit, $minutes, $seconds);
 		}
 
 		if ($response->getStatus() != 200) {
@@ -171,7 +245,7 @@ class Connection {
 			}
 		}
 
-		if (! $jsonData) {
+		if (! is_array($jsonData)) {
 			throw new \Exception("Bad data");
 		}
 
