@@ -7,6 +7,8 @@ use \GithubV3\Factories\RepositoryFactory;
 use \GithubV3\Factories\UserFactory;
 use \GithubV3\Factories\BranchFactory;
 use \GithubV3\Factories\CommitFactory;
+use \GithubV3\Factories\ContentsFactory;
+
 use \Request\Curl\Request;
 
 class Connection {
@@ -14,15 +16,16 @@ class Connection {
 	protected $token;
 	protected $baseUrl;
 
-	protected $verbose = true;
+	//protected $verbose = true;
 
 	protected $repoFactory;
 	protected $userFactory;
 	protected $commitFactory;
 	protected $branchFactory;
+	protected $contentsFactory;
 	protected $prFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory) {
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory) {
 
 		$this->baseUrl = $baseUrl;
 
@@ -31,6 +34,7 @@ class Connection {
 		$this->userFactory   = $userFactory;
 		$this->commitFactory = $commitFactory;
 		$this->branchFactory = $branchFactory;
+		$this->contentsFactory = $contentsFactory;
 	}
 
 
@@ -197,13 +201,27 @@ class Connection {
 	}
 
 	public function getCommit($owner, $repo, $sha, $page=null, $perPage = null) {
-
 		$data = $this->requestUrl("/repos/$owner/$repo/commits/$sha", [
 			"page" => $page,
-			"per_page" => $perPage
-		]);
+			"per_page" => $perPage]);
 
 		return $this->commitFactory->makeFromData($data, $this);
+	}
+
+	public function getReadme($owner, $repo, $ref = null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/readme", [
+			"ref" => $ref]);
+
+ 		return $this->contentsFactory->makeFromData($owner, $repo, $data['path'], $ref, $data, $this);
+	}
+
+	public function getContents($owner, $repo, $path, $ref = null, $page=null, $pageSize=null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/contents/$path", [
+			"ref" => $ref,
+			"page" => $page,
+			"page_size" => $pageSize]);
+
+		return $this->contentsFactory->makeFromData($owner, $repo, $path, $ref, $data, $this);
 
 	}
 
