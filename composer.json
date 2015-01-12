@@ -1,5 +1,5 @@
 {
-	"name"        : "bellows/githubv3",
+	"name"        : "bellows/api-github-v3",
 	"description" : "Clean github api client",
 	"license"     : "MIT",
 	"require"     : {
