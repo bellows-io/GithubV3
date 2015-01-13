@@ -8,6 +8,7 @@ use \GithubV3\Factories\UserFactory;
 use \GithubV3\Factories\BranchFactory;
 use \GithubV3\Factories\CommitFactory;
 use \GithubV3\Factories\ContentsFactory;
+use \GithubV3\Factories\LabelFactory;
 
 use \Request\Curl\Request;
 
@@ -24,8 +25,9 @@ class Connection {
 	protected $branchFactory;
 	protected $contentsFactory;
 	protected $prFactory;
+	protected $labelFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory) {
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory) {
 
 		$this->baseUrl = $baseUrl;
 
@@ -35,6 +37,7 @@ class Connection {
 		$this->commitFactory = $commitFactory;
 		$this->branchFactory = $branchFactory;
 		$this->contentsFactory = $contentsFactory;
+		$this->labelFactory = $labelFactory;
 	}
 
 
@@ -244,6 +247,13 @@ class Connection {
 		$data = $this->requestUrl("/teams/$teamId/members");
 		return array_map(function($d) {
 			return $this->userFactory->makeFromPartialData($d, $this);
+		}, $data);
+	}
+
+	public function listIssueLabels($owner, $repo, $number) {
+		$data = $this->requestUrl("/repos/$owner/$repo/issues/$number/labels");
+		return array_map(function($d) {
+			return $this->labelFactory->makeFromData($d);
 		}, $data);
 	}
 
