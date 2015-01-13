@@ -10,6 +10,7 @@ use \GithubV3\Factories\CommitFactory;
 use \GithubV3\Factories\ContentsFactory;
 use \GithubV3\Factories\LabelFactory;
 use \GithubV3\Factories\CommentFactory;
+use \GithubV3\Factories\TeamFactory;
 
 use \Request\Curl\Request;
 
@@ -18,7 +19,7 @@ class Connection {
 	protected $token;
 	protected $baseUrl;
 
-	//protected $verbose = true;
+	protected $verbose = false;
 
 	protected $repoFactory;
 	protected $userFactory;
@@ -27,21 +28,26 @@ class Connection {
 	protected $contentsFactory;
 	protected $prFactory;
 	protected $labelFactory;
+	protected $teamFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory, CommentFactory $commentFactory) {
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory, CommentFactory $commentFactory, TeamFactory $teamFactory) {
 
 		$this->baseUrl = $baseUrl;
 
-		$this->repoFactory     = $repoFactory;
-		$this->prFactory       = $prFactory;
-		$this->userFactory     = $userFactory;
-		$this->commitFactory   = $commitFactory;
-		$this->branchFactory   = $branchFactory;
-		$this->contentsFactory = $contentsFactory;
-		$this->labelFactory    = $labelFactory;
-		$this->commentFactory  = $commentFactory;
+		$this->repoFactory         = $repoFactory;
+		$this->prFactory           = $prFactory;
+		$this->userFactory         = $userFactory;
+		$this->commitFactory       = $commitFactory;
+		$this->branchFactory       = $branchFactory;
+		$this->contentsFactory     = $contentsFactory;
+		$this->labelFactory        = $labelFactory;
+		$this->commentFactory      = $commentFactory;
+		$this->teamFactory = $teamFactory;
 	}
 
+	public function setVerbose($verbose) {
+		$this->verbose = $verbose;
+	}
 
 	### Repositories
 	public function listMyRepositories($type=null, $sort=null, $direction=null, $page = null, $perPage = null) {
@@ -256,6 +262,12 @@ class Connection {
 		}, $data);
 	}
 
+	public function listOrgTeams($org) {
+		$data = $this->requestUrl("/orgs/$org/teams");
+		return array_map(function($d) {
+			return $this->teamFactory->makeFromData($d);
+		}, $data);
+	}
 	public function getTeamMembers($teamId) {
 		$data = $this->requestUrl("/teams/$teamId/members");
 		return array_map(function($d) {
