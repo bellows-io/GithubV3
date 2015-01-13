@@ -240,6 +240,13 @@ class Connection {
 			return $this->prFactory->makeFromData($owner, $repo, $d, $this);
 		}, $data);
 	}
+	public function getTeamMembers($teamId) {
+		$data = $this->requestUrl("/teams/$teamId/members");
+		return array_map(function($d) {
+			return $this->userFactory->makeFromPartialData($d, $this);
+		}, $data);
+	}
+
 	protected function requestUrl($path, array $parameters = array(), $method="GET") {
 		$url = $this->baseUrl.$path;
 
