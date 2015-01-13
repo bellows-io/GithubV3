@@ -225,6 +225,21 @@ class Connection {
 
 	}
 
+	public function listPullRequests($owner, $repo, $state = null, $head = null, $base = null, $sort = null, $direction = null, $page = null, $pageSize = null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/pulls", [
+			'state' => $state,
+			'head' => $head,
+			'base' => $base,
+			'sort' => $sort,
+			'direction' => $direction,
+			'page' => $page,
+			'page_size' => $pageSize
+			]);
+
+		return array_map(function($d) use ($owner, $repo) {
+			return $this->prFactory->makeFromData($owner, $repo, $d, $this);
+		}, $data);
+	}
 	protected function requestUrl($path, array $parameters = array(), $method="GET") {
 		$url = $this->baseUrl.$path;
 
