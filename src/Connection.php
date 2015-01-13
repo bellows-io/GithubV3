@@ -9,6 +9,7 @@ use \GithubV3\Factories\BranchFactory;
 use \GithubV3\Factories\CommitFactory;
 use \GithubV3\Factories\ContentsFactory;
 use \GithubV3\Factories\LabelFactory;
+use \GithubV3\Factories\CommentFactory;
 
 use \Request\Curl\Request;
 
@@ -27,17 +28,18 @@ class Connection {
 	protected $prFactory;
 	protected $labelFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory) {
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory, CommentFactory $commentFactory) {
 
 		$this->baseUrl = $baseUrl;
 
-		$this->repoFactory   = $repoFactory;
-		$this->prFactory     = $prFactory;
-		$this->userFactory   = $userFactory;
-		$this->commitFactory = $commitFactory;
-		$this->branchFactory = $branchFactory;
+		$this->repoFactory     = $repoFactory;
+		$this->prFactory       = $prFactory;
+		$this->userFactory     = $userFactory;
+		$this->commitFactory   = $commitFactory;
+		$this->branchFactory   = $branchFactory;
 		$this->contentsFactory = $contentsFactory;
-		$this->labelFactory = $labelFactory;
+		$this->labelFactory    = $labelFactory;
+		$this->commentFactory  = $commentFactory;
 	}
 
 
@@ -243,6 +245,17 @@ class Connection {
 			return $this->prFactory->makeFromData($owner, $repo, $d, $this);
 		}, $data);
 	}
+
+	public function listIssueComments($owner, $repo, $issueNumber, $page=null, $pageSize=null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/issues/$issueNumber/comments", [
+			'page' => $page,
+			'page_size' => $pageSize
+		]);
+		return array_map(function($d) use ($owner, $repo, $issueNumber) {
+			return $this->commentFactory->makeFromData($owner, $repo, $issueNumber, $d, $this);
+		}, $data);
+	}
+
 	public function getTeamMembers($teamId) {
 		$data = $this->requestUrl("/teams/$teamId/members");
 		return array_map(function($d) {
