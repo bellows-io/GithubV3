@@ -30,6 +30,8 @@ class Connection {
 	protected $labelFactory;
 	protected $teamFactory;
 
+	protected $requestCallbacks = [];
+
 	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory, CommentFactory $commentFactory, TeamFactory $teamFactory) {
 
 		$this->baseUrl = $baseUrl;
@@ -42,11 +44,15 @@ class Connection {
 		$this->contentsFactory     = $contentsFactory;
 		$this->labelFactory        = $labelFactory;
 		$this->commentFactory      = $commentFactory;
-		$this->teamFactory = $teamFactory;
+		$this->teamFactory         = $teamFactory;
 	}
 
 	public function setVerbose($verbose) {
 		$this->verbose = $verbose;
+	}
+
+	public function onRequest(callable $callback) {
+		$this->requestCallbacks[] = $callback;
 	}
 
 	### Repositories
@@ -246,7 +252,6 @@ class Connection {
 			'page' => $page,
 			'page_size' => $pageSize
 			]);
-
 		return array_map(function($d) use ($owner, $repo) {
 			return $this->prFactory->makeFromData($owner, $repo, $d, $this);
 		}, $data);
@@ -300,8 +305,8 @@ class Connection {
 		$response = $request->exec();
 		$jsonData = @json_decode($response->getBody(), true);
 
-		if ($this->verbose) {
-			echo "Requesting $url\n";
+		if ($this->verbose || $this->requestCallbacks) {
+
 			$headers = $response->getHeaders();
 			$limit = $headers['X-RateLimit-Limit'];
 			$remaining = $headers['X-RateLimit-Remaining'];
@@ -309,8 +314,18 @@ class Connection {
 			$minutes = floor($reset / 60);
 			$seconds = $reset % 60;
 
-			printf("%d / %d requests available. Resets in %d:%02d\n", $remaining, $limit, $minutes, $seconds);
+			if ($this->verbose) {
+				echo "Requesting $url\n";
+				printf("%d / %d requests available. Resets in %d:%02d\n", $remaining, $limit, $minutes, $seconds);
+			}
+			if ($this->requestCallbacks) {
+				foreach ($this->requestCallbacks as $callback) {
+					$out = call_user_func($callback, $url, $remaining, $limit, $reset);
+					if ($out === false) { break; }
+				}
+			}
 		}
+
 
 		if ($response->getStatus() != 200) {
 			if ($jsonData && isset($jsonData['message'])) {
