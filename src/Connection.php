@@ -8,6 +8,9 @@ use \GithubV3\Factories\UserFactory;
 use \GithubV3\Factories\BranchFactory;
 use \GithubV3\Factories\CommitFactory;
 use \GithubV3\Factories\ContentsFactory;
+use \GithubV3\Factories\LabelFactory;
+use \GithubV3\Factories\CommentFactory;
+use \GithubV3\Factories\TeamFactory;
 
 use \Request\Curl\Request;
 
@@ -16,7 +19,7 @@ class Connection {
 	protected $token;
 	protected $baseUrl;
 
-	//protected $verbose = true;
+	protected $verbose = false;
 
 	protected $repoFactory;
 	protected $userFactory;
@@ -24,19 +27,33 @@ class Connection {
 	protected $branchFactory;
 	protected $contentsFactory;
 	protected $prFactory;
+	protected $labelFactory;
+	protected $teamFactory;
 
-	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory) {
+	protected $requestCallbacks = [];
+
+	public function __construct($baseUrl, RepositoryFactory $repoFactory, PullRequestFactory $prFactory, UserFactory $userFactory, BranchFactory $branchFactory, CommitFactory $commitFactory, ContentsFactory $contentsFactory, LabelFactory $labelFactory, CommentFactory $commentFactory, TeamFactory $teamFactory) {
 
 		$this->baseUrl = $baseUrl;
 
-		$this->repoFactory   = $repoFactory;
-		$this->prFactory     = $prFactory;
-		$this->userFactory   = $userFactory;
-		$this->commitFactory = $commitFactory;
-		$this->branchFactory = $branchFactory;
-		$this->contentsFactory = $contentsFactory;
+		$this->repoFactory         = $repoFactory;
+		$this->prFactory           = $prFactory;
+		$this->userFactory         = $userFactory;
+		$this->commitFactory       = $commitFactory;
+		$this->branchFactory       = $branchFactory;
+		$this->contentsFactory     = $contentsFactory;
+		$this->labelFactory        = $labelFactory;
+		$this->commentFactory      = $commentFactory;
+		$this->teamFactory         = $teamFactory;
 	}
 
+	public function setVerbose($verbose) {
+		$this->verbose = $verbose;
+	}
+
+	public function onRequest(callable $callback) {
+		$this->requestCallbacks[] = $callback;
+	}
 
 	### Repositories
 	public function listMyRepositories($type=null, $sort=null, $direction=null, $page = null, $perPage = null) {
@@ -225,6 +242,51 @@ class Connection {
 
 	}
 
+	public function listPullRequests($owner, $repo, $state = null, $head = null, $base = null, $sort = null, $direction = null, $page = null, $pageSize = null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/pulls", [
+			'state' => $state,
+			'head' => $head,
+			'base' => $base,
+			'sort' => $sort,
+			'direction' => $direction,
+			'page' => $page,
+			'page_size' => $pageSize
+			]);
+		return array_map(function($d) use ($owner, $repo) {
+			return $this->prFactory->makeFromData($owner, $repo, $d, $this);
+		}, $data);
+	}
+
+	public function listIssueComments($owner, $repo, $issueNumber, $page=null, $pageSize=null) {
+		$data = $this->requestUrl("/repos/$owner/$repo/issues/$issueNumber/comments", [
+			'page' => $page,
+			'page_size' => $pageSize
+		]);
+		return array_map(function($d) use ($owner, $repo, $issueNumber) {
+			return $this->commentFactory->makeFromData($owner, $repo, $issueNumber, $d, $this);
+		}, $data);
+	}
+
+	public function listOrgTeams($org) {
+		$data = $this->requestUrl("/orgs/$org/teams");
+		return array_map(function($d) {
+			return $this->teamFactory->makeFromData($d);
+		}, $data);
+	}
+	public function getTeamMembers($teamId) {
+		$data = $this->requestUrl("/teams/$teamId/members");
+		return array_map(function($d) {
+			return $this->userFactory->makeFromPartialData($d, $this);
+		}, $data);
+	}
+
+	public function listIssueLabels($owner, $repo, $number) {
+		$data = $this->requestUrl("/repos/$owner/$repo/issues/$number/labels");
+		return array_map(function($d) {
+			return $this->labelFactory->makeFromData($d);
+		}, $data);
+	}
+
 	protected function requestUrl($path, array $parameters = array(), $method="GET") {
 		$url = $this->baseUrl.$path;
 
@@ -243,8 +305,8 @@ class Connection {
 		$response = $request->exec();
 		$jsonData = @json_decode($response->getBody(), true);
 
-		if ($this->verbose) {
-			echo "Requesting $url\n";
+		if ($this->verbose || $this->requestCallbacks) {
+
 			$headers = $response->getHeaders();
 			$limit = $headers['X-RateLimit-Limit'];
 			$remaining = $headers['X-RateLimit-Remaining'];
@@ -252,8 +314,18 @@ class Connection {
 			$minutes = floor($reset / 60);
 			$seconds = $reset % 60;
 
-			printf("%d / %d requests available. Resets in %d:%02d\n", $remaining, $limit, $minutes, $seconds);
+			if ($this->verbose) {
+				echo "Requesting $url\n";
+				printf("%d / %d requests available. Resets in %d:%02d\n", $remaining, $limit, $minutes, $seconds);
+			}
+			if ($this->requestCallbacks) {
+				foreach ($this->requestCallbacks as $callback) {
+					$out = call_user_func($callback, $url, $remaining, $limit, $reset);
+					if ($out === false) { break; }
+				}
+			}
 		}
+
 
 		if ($response->getStatus() != 200) {
 			if ($jsonData && isset($jsonData['message'])) {

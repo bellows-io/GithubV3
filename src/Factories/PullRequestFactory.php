@@ -11,13 +11,14 @@ use DateTime;
 class PullRequestFactory {
 
 	protected $userFactory;
-	protected $repoFactory;
+	protected $branchFactory;
 
-	public function __construct(UserFactory $userFactory) {
+	public function __construct(UserFactory $userFactory, BranchFactory $branchFactory) {
 		$this->userFactory = $userFactory;
+		$this->branchFactory = $branchFactory;
 	}
 
-	public function makeFromData($data, Connection $connection) {
+	public function makeFromData($owner, $repo, $data, Connection $connection) {
 		$user = $this->userFactory->makeFromPartialData($data['user'], $connection);
 		$assignee = null;
 		if ($data['assignee']) {
@@ -40,8 +41,8 @@ class PullRequestFactory {
 			$assignee,
 			$data['milestone'],
 			$data['statuses_url'],
-			$data['head'],//new Branch(), // from ['head']
-			$data['base']//new Branch() // form ['base']
+			$this->branchFactory->makeFromData($owner, $repo, $data['head'], $connection),//new Branch(), // from ['head']
+			$this->branchFactory->makeFromData($owner, $repo, $data['base'], $connection)//new Branch() // form ['base']
 		);
 	}
 }
