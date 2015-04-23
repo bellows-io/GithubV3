@@ -15,8 +15,8 @@ class BranchFactory {
 
 	public function makeFromData($owner , $repo, $data, Connection $connection) {
 		return new Branch(
-			$data['name'],
-			$this->commitFactory->makeFromPartialData($owner, $repo, $data['commit'], $connection)
+			$data['ref'],
+			$this->commitFactory->makeFromPartialData($owner, $repo, $data, $connection)
 		);
 	}
 }
